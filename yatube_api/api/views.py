@@ -3,18 +3,16 @@ from rest_framework import viewsets
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.pagination import LimitOffsetPagination
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from .permission import IsOwnerOrReadOnly
-from posts.models import Post, Group, Follow
+from posts.models import Post, Group
 from .serializers import (
     PostSerializer,
     GroupSerializer,
     CommentSerializer,
     FollowSerializer
 )
-
+from .pagination import CustomPagination
 
 FORBIDDDEN_403 = PermissionDenied("Изменение чужого контента запрещено!")
 
@@ -27,8 +25,7 @@ class PostViewSet(viewsets.ModelViewSet):
     permission_classes = (
         IsOwnerOrReadOnly,
     )
-    pagination_class = LimitOffsetPagination
-    #pagination_class = None
+    pagination_class = CustomPagination
 
     def perform_create(self, serializer):
         """Переопределение автора на юзера."""
@@ -70,9 +67,10 @@ class FollowViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = (filters.SearchFilter,)
     search_fields = ("following__username", "user__username")
+    pagination_class = None
 
     def perfom_create(self, serializer):
         serializer.save(user=self.request.user)
 
     def get_queryset(self):
-        return self.request.user.follower
+        return self.request.user.follower.all()
