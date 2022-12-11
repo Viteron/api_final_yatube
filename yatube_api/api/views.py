@@ -1,7 +1,7 @@
 """View функции приложения API."""
 from rest_framework import viewsets
 from django.shortcuts import get_object_or_404
-from rest_framework.exceptions import PermissionDenied
+
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework import mixins
@@ -14,8 +14,6 @@ from .serializers import (
     CommentSerializer,
     FollowSerializer
 )
-
-FORBIDDDEN_403 = PermissionDenied("Изменение чужого контента запрещено!")
 
 
 class PostViewSet(viewsets.ModelViewSet):
@@ -49,14 +47,16 @@ class CommentViewSet(viewsets.ModelViewSet):
     permission_classes = (IsOwnerOrReadOnly,)
     pagination_class = None
 
+    def _get_post(self):
+        """Получаем посты по id."""
+        return get_object_or_404(Post, pk=self.kwargs.get("post_id"))
+
     def get_queryset(self):
         """Выборка комментариев."""
-        post = get_object_or_404(Post, pk=self.kwargs.get("post_id"))
-        return post.comments.all()
+        return self._get_post().comments.all()
 
     def perform_create(self, serializer):
-        """Переопределение автора на юзера."""
-        serializer.save(author=self.request.user)
+        serializer.save(author=self.request.user, post=self._get_post())
 
 
 class FollowViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
