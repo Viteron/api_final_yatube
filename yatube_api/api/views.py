@@ -3,16 +3,17 @@ from rest_framework import viewsets
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import LimitOffsetPagination
+from rest_framework import mixins
 from rest_framework import filters
 from .permission import IsOwnerOrReadOnly
-from posts.models import Post, Group
+from posts.models import Post, Group, Comment, Follow
 from .serializers import (
     PostSerializer,
     GroupSerializer,
     CommentSerializer,
     FollowSerializer
 )
-from .pagination import CustomPagination
 
 FORBIDDDEN_403 = PermissionDenied("Изменение чужого контента запрещено!")
 
@@ -25,7 +26,7 @@ class PostViewSet(viewsets.ModelViewSet):
     permission_classes = (
         IsOwnerOrReadOnly,
     )
-    pagination_class = CustomPagination
+    pagination_class = LimitOffsetPagination
 
     def perform_create(self, serializer):
         """Переопределение автора на юзера."""
@@ -41,12 +42,11 @@ class GroupViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class CommentViewSet(viewsets.ModelViewSet):
-    """View комментариев."""
+    """вью-сет для модели Comment."""
 
+    queryset = Comment.objects.all()
     serializer_class = CommentSerializer
-    permission_classes = (
-        IsOwnerOrReadOnly,
-    )
+    permission_classes = (IsOwnerOrReadOnly,)
     pagination_class = None
 
     def get_queryset(self):
@@ -55,22 +55,24 @@ class CommentViewSet(viewsets.ModelViewSet):
         return post.comments.all()
 
     def perform_create(self, serializer):
-        """Создание постов."""
-        post = get_object_or_404(Post, pk=self.kwargs.get("post_id"))
-        serializer.save(author=self.request.user, post=post)
+        """Переопределение автора на юзера."""
+        serializer.save(author=self.request.user)
 
 
-class FollowViewSet(viewsets.ModelViewSet):
+class FollowViewSet(mixins.CreateModelMixin, mixins.ListModelMixin,
+                    viewsets.GenericViewSet):
     """вью-сет для модели Follow."""
 
+    queryset = Follow.objects.all()
     serializer_class = FollowSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = (IsAuthenticated,)
     filter_backends = (filters.SearchFilter,)
-    search_fields = ("following__username", "user__username")
-    pagination_class = None
-
-    def perfom_create(self, serializer):
-        serializer.save(user=self.request.user)
+    search_fields = ('following__username', 'user__username')
 
     def get_queryset(self):
-        return self.request.user.follower.all()
+        """Возвращает отфильтрованный список подписок."""
+        return Follow.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        """Переопределение автора на юзера."""
+        serializer.save(user=self.request.user)
